@@ -512,7 +512,7 @@ export default function Dashboard() {
   const fetchLaunches = useCallback(async () => {
     setLoadingLaunches(true);
     try {
-      const res = await fetch('/api/database?sheet=Launches');
+      const res = await fetch('/api/launches');
       if (!res.ok) throw new Error();
       const json: { data: LaunchRecord[] } = await res.json();
       setLaunches(json.data ?? []);
@@ -529,7 +529,7 @@ export default function Dashboard() {
   const fetchKol = useCallback(async () => {
     setLoadingKol(true);
     try {
-      const res = await fetch('/api/kol_radar');
+      const res = await fetch('/api/kol-signals');
       if (!res.ok) throw new Error();
       const json: { data: KolRecord[] } = await res.json();
       setKolData(json.data ?? []);
@@ -560,7 +560,7 @@ export default function Dashboard() {
   const handleConvertToLead = async (kolId: string) => {
     setConvertingId(kolId);
     try {
-      const res = await fetch('/api/kol_radar', {
+      const res = await fetch('/api/convert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kol_id: kolId }),

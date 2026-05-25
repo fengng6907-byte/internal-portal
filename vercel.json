@@ -1,7 +1,8 @@
 {
   "functions": {
-    "api/database.py":  { "runtime": "python3.9", "maxDuration": 15 },
-    "api/scraper.py":   { "runtime": "python3.9", "maxDuration": 30 },
-    "api/kol_radar.py": { "runtime": "python3.9", "maxDuration": 10 }
-  }
+    "api/index.py": { "runtime": "python3.9", "maxDuration": 30 }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" }
+  ]
 }
