@@ -1,22 +1,4 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/*.py",
-      "use": "@vercel/python",
-      "config": { "maxLambdaSize": "15mb" }
-    },
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ],
-  "routes": [
-    { "src": "/api/database",  "dest": "/api/database.py"  },
-    { "src": "/api/scraper",   "dest": "/api/scraper.py"   },
-    { "src": "/api/kol_radar", "dest": "/api/kol_radar.py" },
-    { "src": "/(.*)",          "dest": "/$1"               }
-  ],
   "functions": {
     "api/database.py":  { "runtime": "python3.9", "maxDuration": 15 },
     "api/scraper.py":   { "runtime": "python3.9", "maxDuration": 30 },
