@@ -8,15 +8,25 @@ from __future__ import annotations
 import hashlib
 import os
 
+from dotenv import load_dotenv
 from supabase import Client, create_client
+
+# load_dotenv() is a no-op on Vercel (env vars are already in os.environ).
+# It reads .env.local when running locally with uvicorn, which is useful for
+# local development without having to export vars manually.
+load_dotenv()
+
+_SUPABASE_URL = os.environ.get("SUPABASE_URL")
+_SUPABASE_KEY = os.environ.get("SUPABASE_ANON_KEY")
 
 
 def _get_client() -> Client:
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_ANON_KEY")
-    if not url or not key:
-        raise EnvironmentError("SUPABASE_URL and SUPABASE_ANON_KEY must be set")
-    return create_client(url, key)
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        raise EnvironmentError(
+            "SUPABASE_URL and SUPABASE_ANON_KEY must be set. "
+            "Add them in Vercel → Settings → Environment Variables."
+        )
+    return create_client(_SUPABASE_URL, _SUPABASE_KEY)
 
 
 def read_launches() -> list[dict]:
