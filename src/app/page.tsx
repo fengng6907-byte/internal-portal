@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Database,
+  Download,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -32,6 +33,9 @@ interface LaunchRecord {
   status?: string;
   source?: string;
   brand_hint?: string;
+  market?: string;
+  distributor_point?: string;
+  festive_tag?: string;
   [key: string]: string | undefined;
 }
 
@@ -47,6 +51,8 @@ interface KolRecord {
   detected_at: string;
   post_url: string;
   status: string;
+  market?: string;
+  distributor_point?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +69,9 @@ const DEMO_LAUNCHES: LaunchRecord[] = [
     status: 'New',
     source: 'Scraper',
     brand_hint: '',
+    market: 'Singapore',
+    distributor_point: 'Auric Pacific',
+    festive_tag: 'None',
   },
   {
     timestamp: '2026-05-24 14:30:00',
@@ -73,6 +82,9 @@ const DEMO_LAUNCHES: LaunchRecord[] = [
     status: 'New',
     source: 'Scraper',
     brand_hint: 'Korean snack import',
+    market: 'Singapore',
+    distributor_point: 'DKSH',
+    festive_tag: 'None',
   },
   {
     timestamp: '2026-05-24 10:05:00',
@@ -83,6 +95,9 @@ const DEMO_LAUNCHES: LaunchRecord[] = [
     status: 'KOL Lead',
     source: 'YouTube / @nasilemakking_sg',
     brand_hint: 'Japanese ramen import — Sheng Siong',
+    market: 'Singapore',
+    distributor_point: 'DKSH',
+    festive_tag: 'None',
   },
   {
     timestamp: '2026-05-23 09:00:00',
@@ -93,6 +108,22 @@ const DEMO_LAUNCHES: LaunchRecord[] = [
     status: 'Contacted',
     source: 'Scraper',
     brand_hint: '',
+    market: 'Singapore',
+    distributor_point: 'Direct',
+    festive_tag: 'None',
+  },
+  {
+    timestamp: '2026-05-25 07:45:00',
+    title: 'New Japanese snack brand lands Jaya Grocer Malaysia exclusive — 6 SKU launch',
+    url: '#',
+    url_hash: 'demo_my01',
+    pub_date: '2026-05-25',
+    status: 'New',
+    source: 'Scraper',
+    brand_hint: 'Japanese snack — Jaya Grocer MY',
+    market: 'Malaysia',
+    distributor_point: 'DKSH',
+    festive_tag: 'None',
   },
 ];
 
@@ -271,18 +302,28 @@ function LaunchRadar({
             Singapore FMCG signals — trade publications · RSS feeds
           </p>
         </div>
-        <button
-          onClick={onRunScraper}
-          disabled={scraping}
-          className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-600 rounded-md text-xs text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        >
-          {scraping ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <RefreshCw className="w-3 h-3" />
-          )}
-          {scraping ? 'Scanning…' : 'Run Scraper'}
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/reports/download"
+            download
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/25 hover:border-emerald-500/50 rounded-md text-xs text-emerald-300 transition-all"
+          >
+            <Download className="w-3 h-3" />
+            📥 Export Regional Market Intel Report
+          </a>
+          <button
+            onClick={onRunScraper}
+            disabled={scraping}
+            className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-600 rounded-md text-xs text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {scraping ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3 h-3" />
+            )}
+            {scraping ? 'Scanning…' : 'Run Scraper'}
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -508,6 +549,7 @@ export default function Dashboard() {
   const [convertedIds, setConvertedIds] = useState<Set<string>>(new Set());
   const [usingDemo, setUsingDemo] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [marketFilter, setMarketFilter] = useState<'ALL' | 'SG' | 'MY'>('ALL');
 
   const fetchLaunches = useCallback(async () => {
     setLoadingLaunches(true);
@@ -575,16 +617,26 @@ export default function Dashboard() {
     }
   };
 
+  // Market filter
+  const filteredLaunches = launches.filter((l) => {
+    if (marketFilter === 'ALL') return true;
+    return marketFilter === 'MY' ? l.market === 'Malaysia' : l.market !== 'Malaysia';
+  });
+  const filteredKolData = kolData.filter((k) => {
+    if (marketFilter === 'ALL') return true;
+    return marketFilter === 'MY' ? k.market === 'Malaysia' : k.market !== 'Malaysia';
+  });
+
   // Derived metrics
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const totalActiveLeads = launches.filter((l) => l.status !== 'Converted').length;
-  const conversionsThisWeek = launches.filter((l) => {
+  const totalActiveLeads = filteredLaunches.filter((l) => l.status !== 'Converted').length;
+  const conversionsThisWeek = filteredLaunches.filter((l) => {
     if (!l.timestamp) return false;
     return new Date(l.timestamp) >= weekAgo && l.status === 'KOL Lead';
   }).length;
   const avgSignalScore =
-    kolData.length > 0
-      ? Math.round(kolData.reduce((s, k) => s + k.signal_score, 0) / kolData.length)
+    filteredKolData.length > 0
+      ? Math.round(filteredKolData.reduce((s, k) => s + k.signal_score, 0) / filteredKolData.length)
       : 0;
 
   return (
@@ -600,7 +652,24 @@ export default function Dashboard() {
           <span className="text-xs text-zinc-500 tracking-widest uppercase">FMCG BD Portal</span>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* SG / MY market toggle */}
+          <div className="flex items-center rounded-md border border-zinc-700 overflow-hidden text-xs">
+            {(['ALL', 'SG', 'MY'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMarketFilter(m)}
+                className={`px-2.5 py-1 transition-colors ${
+                  marketFilter === m
+                    ? 'bg-zinc-700 text-zinc-100'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                }`}
+              >
+                {m === 'SG' ? '🇸🇬 SG' : m === 'MY' ? '🇲🇾 MY' : 'All'}
+              </button>
+            ))}
+          </div>
+
           {usingDemo && (
             <div className="flex items-center gap-1.5 text-amber-400/80 text-xs">
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -634,7 +703,7 @@ export default function Dashboard() {
         />
         <MetricCard
           label="KOL Signals"
-          value={kolData.length}
+          value={filteredKolData.length}
           icon={Users}
           accent="violet"
           sub="#prhaulsg · #mediakitsg"
@@ -666,14 +735,14 @@ export default function Dashboard() {
               >
                 <span className="text-base leading-none">{tab.emoji}</span>
                 <span>{tab.label}</span>
-                {tab.id === 'launch-radar' && launches.length > 0 && (
+                {tab.id === 'launch-radar' && filteredLaunches.length > 0 && (
                   <span className="ml-auto text-[10px] bg-zinc-700 text-zinc-400 rounded-full px-1.5 min-w-[18px] text-center">
-                    {launches.length}
+                    {filteredLaunches.length}
                   </span>
                 )}
-                {tab.id === 'kol-radar' && kolData.length > 0 && (
+                {tab.id === 'kol-radar' && filteredKolData.length > 0 && (
                   <span className="ml-auto text-[10px] bg-violet-500/20 text-violet-400 rounded-full px-1.5 min-w-[18px] text-center">
-                    {kolData.length}
+                    {filteredKolData.length}
                   </span>
                 )}
               </button>
@@ -700,7 +769,7 @@ export default function Dashboard() {
         <main className="flex-1 overflow-auto p-6">
           {activeTab === 'launch-radar' && (
             <LaunchRadar
-              launches={launches}
+              launches={filteredLaunches}
               loading={loadingLaunches}
               onRunScraper={handleRunScraper}
               scraping={scraping}
@@ -708,7 +777,7 @@ export default function Dashboard() {
           )}
           {activeTab === 'kol-radar' && (
             <KolRadar
-              kolData={kolData}
+              kolData={filteredKolData}
               loading={loadingKol}
               onConvert={handleConvertToLead}
               convertingId={convertingId}
