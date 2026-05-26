@@ -4,199 +4,188 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
-  ArrowUpRight,
   CheckCircle2,
   Database,
   Download,
   ExternalLink,
   Loader2,
+  MapPin,
   RefreshCw,
   ShieldCheck,
-  Signal,
   TrendingUp,
   Users,
   Zap,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — mirror the Supabase schema exactly
 // ---------------------------------------------------------------------------
 
 type TabId = 'launch-radar' | 'kol-radar';
 
 interface LaunchRecord {
-  timestamp?: string;
-  title?: string;
-  url?: string;
-  url_hash?: string;
-  pub_date?: string;
-  status?: string;
-  source?: string;
-  brand_hint?: string;
-  market?: string;
+  id: string;
+  brand_name: string;
+  product_name: string;
+  market: string;
+  retail_channel?: string;
   distributor_point?: string;
   festive_tag?: string;
-  [key: string]: string | undefined;
+  product_photo_url?: string;
+  creator_display_name?: string;
+  pitch_status?: string;
+  last_action_date?: string;
 }
 
 interface KolRecord {
   id: string;
-  handle: string;
   platform: string;
-  follower_count: number;
-  tags: string[];
-  recent_post: string;
-  signal_score: number;
-  brand_hint: string;
-  detected_at: string;
-  post_url: string;
-  status: string;
-  market?: string;
-  distributor_point?: string;
+  creator_display_name?: string;
+  market: string;
+  detected_keywords?: string;
+  product_photo_url?: string;
+  source_url?: string;
+  captured_date?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Fallback demo data (rendered when Google Sheets credentials are absent)
+// Fallback demo data (shown when Supabase credentials are absent)
 // ---------------------------------------------------------------------------
 
 const DEMO_LAUNCHES: LaunchRecord[] = [
   {
-    timestamp: '2026-05-25 08:12:00',
-    title: 'Meiji launches new matcha soft serve collab exclusive to FairPrice Finest',
-    url: '#',
-    url_hash: 'demo_a1b2',
-    pub_date: '2026-05-25',
-    status: 'New',
-    source: 'Scraper',
-    brand_hint: '',
+    id: 'demo_a1b2',
+    brand_name: 'Meiji',
+    product_name: 'Matcha soft serve collab — FairPrice Finest exclusive',
     market: 'Singapore',
+    retail_channel: 'FairPrice',
     distributor_point: 'Auric Pacific',
     festive_tag: 'None',
+    product_photo_url: '',
+    pitch_status: 'Raw',
+    last_action_date: '2026-05-25T08:12:00Z',
   },
   {
-    timestamp: '2026-05-24 14:30:00',
-    title: 'Cold Storage introduces premium Korean snack aisle — 12 new SKUs Q3',
-    url: '#',
-    url_hash: 'demo_c3d4',
-    pub_date: '2026-05-24',
-    status: 'New',
-    source: 'Scraper',
-    brand_hint: 'Korean snack import',
+    id: 'demo_c3d4',
+    brand_name: 'Korean Snack Import',
+    product_name: 'Cold Storage premium Korean snack aisle — 12 new SKUs Q3',
     market: 'Singapore',
+    retail_channel: 'Cold Storage',
     distributor_point: 'DKSH',
     festive_tag: 'None',
+    product_photo_url: '',
+    pitch_status: 'Raw',
+    last_action_date: '2026-05-24T14:30:00Z',
   },
   {
-    timestamp: '2026-05-24 10:05:00',
-    title: '[KOL Signal] @nasilemakking_sg — New imported ramen line set for Sheng Siong shelves Q3 2026',
-    url: '#',
-    url_hash: 'demo_kol4',
-    pub_date: '2026-05-24',
-    status: 'KOL Lead',
-    source: 'YouTube / @nasilemakking_sg',
-    brand_hint: 'Japanese ramen import — Sheng Siong',
+    id: 'demo_kol4',
+    brand_name: 'Japanese Ramen Import',
+    product_name: '[KOL Signal] @nasilemakking_sg — New ramen line for Sheng Siong Q3',
     market: 'Singapore',
+    retail_channel: 'Sheng Siong',
     distributor_point: 'DKSH',
     festive_tag: 'None',
+    product_photo_url: '',
+    creator_display_name: '@nasilemakking_sg',
+    pitch_status: 'KOL Lead',
+    last_action_date: '2026-05-24T10:05:00Z',
   },
   {
-    timestamp: '2026-05-23 09:00:00',
-    title: 'Marketing Interactive: New FMCG beverage brand targets NTUC FairPrice exclusive listing',
-    url: '#',
-    url_hash: 'demo_e5f6',
-    pub_date: '2026-05-23',
-    status: 'Contacted',
-    source: 'Scraper',
-    brand_hint: '',
+    id: 'demo_e5f6',
+    brand_name: 'Unknown Beverage',
+    product_name: 'New FMCG beverage brand targets NTUC FairPrice exclusive listing',
     market: 'Singapore',
+    retail_channel: 'FairPrice',
     distributor_point: 'Direct',
     festive_tag: 'None',
+    product_photo_url: '',
+    pitch_status: 'Contacted',
+    last_action_date: '2026-05-23T09:00:00Z',
   },
   {
-    timestamp: '2026-05-25 07:45:00',
-    title: 'New Japanese snack brand lands Jaya Grocer Malaysia exclusive — 6 SKU launch',
-    url: '#',
-    url_hash: 'demo_my01',
-    pub_date: '2026-05-25',
-    status: 'New',
-    source: 'Scraper',
-    brand_hint: 'Japanese snack — Jaya Grocer MY',
+    id: 'demo_my01',
+    brand_name: 'Japanese Snack Co',
+    product_name: 'Jaya Grocer Malaysia exclusive — 6 SKU debut launch',
     market: 'Malaysia',
+    retail_channel: 'Jaya Grocer',
     distributor_point: 'DKSH',
     festive_tag: 'None',
+    product_photo_url: '',
+    pitch_status: 'Raw',
+    last_action_date: '2026-05-25T07:45:00Z',
   },
 ];
 
 const DEMO_KOL: KolRecord[] = [
   {
     id: 'kol_001',
-    handle: '@sgfoodiequeenie',
     platform: 'Instagram',
-    follower_count: 87400,
-    tags: ['#prhaulsg', '#sgfoodie', '#sgfood'],
-    recent_post:
-      'Unboxing this mystery PR haul from a major FMCG brand 👀 Something new at FairPrice soon!',
-    signal_score: 92,
-    brand_hint: 'FairPrice / Unknown FMCG',
-    detected_at: '2026-05-24T14:32:00Z',
-    post_url: '#',
-    status: 'New',
+    creator_display_name: '@sgfoodiequeenie',
+    market: 'Singapore',
+    detected_keywords: '#prhaulsg, #sgfoodie, FairPrice, FMCG unboxing mystery brand',
+    product_photo_url: '',
+    source_url: '#',
+    captured_date: '2026-05-24T14:32:00Z',
   },
   {
     id: 'kol_002',
-    handle: '@mediakitsg_trev',
     platform: 'TikTok',
-    follower_count: 124000,
-    tags: ['#mediakitsg', '#sgfoodie', '#newlaunch'],
-    recent_post:
-      'Got the most insane media kit from a snack brand launching next month in SG 🔥 #mediakitsg',
-    signal_score: 88,
-    brand_hint: 'Snack category — Cold Storage likely distribution',
-    detected_at: '2026-05-24T10:15:00Z',
-    post_url: '#',
-    status: 'New',
+    creator_display_name: '@mediakitsg_trev',
+    market: 'Singapore',
+    detected_keywords: '#mediakitsg, #sgfoodie, snack brand, Cold Storage launch',
+    product_photo_url: '',
+    source_url: '#',
+    captured_date: '2026-05-24T10:15:00Z',
   },
   {
     id: 'kol_003',
-    handle: '@unboxwithpriya',
     platform: 'Instagram',
-    follower_count: 52100,
-    tags: ['#prhaulsg', '#sgbeauty', '#sgfoodie'],
-    recent_post:
-      'PR haul from 3 brands this week — the FMCG one smells incredible, limited edition collab incoming 👁',
-    signal_score: 76,
-    brand_hint: 'Beauty x FMCG crossover — limited SKU',
-    detected_at: '2026-05-23T20:45:00Z',
-    post_url: '#',
-    status: 'New',
+    creator_display_name: '@unboxwithpriya',
+    market: 'Singapore',
+    detected_keywords: '#prhaulsg, #sgbeauty, Beauty x FMCG collab, limited edition',
+    product_photo_url: '',
+    source_url: '#',
+    captured_date: '2026-05-23T20:45:00Z',
   },
   {
     id: 'kol_004',
-    handle: '@nasilemakking_sg',
     platform: 'YouTube',
-    follower_count: 203000,
-    tags: ['#sgfoodie', '#unboxing', '#singaporefood'],
-    recent_post:
-      'Full unboxing: New imported ramen line set to hit Sheng Siong shelves Q3 2026 — is it worth it?',
-    signal_score: 95,
-    brand_hint: 'Japanese ramen import — Sheng Siong',
-    detected_at: '2026-05-25T08:00:00Z',
-    post_url: '#',
-    status: 'New',
+    creator_display_name: '@nasilemakking_sg',
+    market: 'Singapore',
+    detected_keywords: '#sgfoodie, #unboxing, ramen, Sheng Siong, Japanese import',
+    product_photo_url: '',
+    source_url: '#',
+    captured_date: '2026-05-25T08:00:00Z',
   },
   {
     id: 'kol_005',
-    handle: '@chillaxwithchels',
     platform: 'TikTok',
-    follower_count: 39800,
-    tags: ['#prhaulsg', '#mediakitsg'],
-    recent_post:
-      "Okay the new beverage PR I got is WILD — this is going to be huge at NTUC. No more details yet 🤫",
-    signal_score: 83,
-    brand_hint: 'Beverage category — NTUC FairPrice',
-    detected_at: '2026-05-25T06:30:00Z',
-    post_url: '#',
-    status: 'New',
+    creator_display_name: '@chillaxwithchels',
+    market: 'Singapore',
+    detected_keywords: '#prhaulsg, #mediakitsg, beverage, NTUC, new launch',
+    product_photo_url: '',
+    source_url: '#',
+    captured_date: '2026-05-25T06:30:00Z',
+  },
+  {
+    id: 'kol_006',
+    platform: 'Instagram',
+    creator_display_name: '@jayagrocerfinds',
+    market: 'Malaysia',
+    detected_keywords: '#malaysiafood, #jayagrocer, Japanese snack, KL launch',
+    product_photo_url: '',
+    source_url: '#',
+    captured_date: '2026-05-25T09:00:00Z',
+  },
+  {
+    id: 'kol_007',
+    platform: 'TikTok',
+    creator_display_name: '@guardianhaulmy',
+    market: 'Malaysia',
+    detected_keywords: '#guardianmy, #prhaulmy, skincare FMCG collab, Raya limited edition',
+    product_photo_url: '',
+    source_url: '#',
+    captured_date: '2026-05-25T11:30:00Z',
   },
 ];
 
@@ -204,38 +193,85 @@ const DEMO_KOL: KolRecord[] = [
 // Utility
 // ---------------------------------------------------------------------------
 
-function fmtFollowers(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
-  return String(n);
-}
-
-const SIGNAL_TEXT: Record<string, string> = {
-  high: 'text-emerald-400',
-  mid: 'text-amber-400',
-  low: 'text-zinc-400',
-};
-const SIGNAL_RING: Record<string, string> = {
-  high: 'bg-emerald-400/10 border-emerald-400/30',
-  mid: 'bg-amber-400/10 border-amber-400/30',
-  low: 'bg-zinc-800 border-zinc-700',
-};
-function signalTier(score: number) {
-  return score >= 90 ? 'high' : score >= 75 ? 'mid' : 'low';
-}
-
-const STATUS_PILL: Record<string, string> = {
-  New: 'bg-sky-500/10 text-sky-400 border border-sky-500/20',
-  'KOL Lead': 'bg-violet-500/10 text-violet-400 border border-violet-500/20',
-  Contacted: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
-  Converted: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
-};
-
 const PLATFORM_EMOJI: Record<string, string> = {
   Instagram: '📸',
   TikTok: '🎵',
   YouTube: '▶️',
 };
+
+const STATUS_PILL: Record<string, string> = {
+  Raw:       'bg-sky-500/10 text-sky-400 border border-sky-500/20',
+  'KOL Lead':'bg-violet-500/10 text-violet-400 border border-violet-500/20',
+  Contacted: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+  Converted: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+};
+
+const BRAND_GRADIENTS: Array<[string, string, string]> = [
+  ['meiji',    '#9d174d', '#831843'],
+  ['nestlé',   '#a16207', '#78350f'],
+  ['nestle',   '#a16207', '#78350f'],
+  ['unilever', '#1d4ed8', '#1e40af'],
+  ['danone',   '#3730a3', '#312e81'],
+  ['mondelez', '#6b21a8', '#581c87'],
+  ['p&g',      '#0369a1', '#075985'],
+  ['kellogg',  '#b91c1c', '#991b1b'],
+  ['mars',     '#92400e', '#78350f'],
+  ['abbott',   '#047857', '#065f46'],
+  ['f&n',      '#c2410c', '#9a3412'],
+];
+
+function brandGradient(name: string): string {
+  const bn = (name ?? '').toLowerCase();
+  const match = BRAND_GRADIENTS.find(([key]) => bn.includes(key));
+  return match
+    ? `linear-gradient(135deg, ${match[1]}, ${match[2]})`
+    : 'linear-gradient(135deg, #27272a, #18181b)';
+}
+
+function fmtDate(iso?: string): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// ---------------------------------------------------------------------------
+// ProductFrame — aspect-square with real image or gradient fallback
+// ---------------------------------------------------------------------------
+
+function ProductFrame({
+  photoUrl,
+  brandName,
+  altText,
+}: {
+  photoUrl?: string;
+  brandName: string;
+  altText: string;
+}) {
+  const [imgError, setImgError] = useState(false);
+  const showImg = !!photoUrl && !imgError;
+
+  return (
+    <div className="w-full aspect-square relative overflow-hidden bg-zinc-950 border-y border-white/[0.05]">
+      {showImg ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photoUrl}
+          alt={altText}
+          onError={() => setImgError(true)}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <div
+          className="w-full h-full flex items-center justify-center"
+          style={{ background: brandGradient(brandName) }}
+        >
+          <span className="text-white/20 text-7xl font-black select-none">
+            {(brandName ?? '?')[0].toUpperCase()}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Brand Story Tray — horizontal scrollable brand avatars with IG story rings
@@ -270,10 +306,9 @@ function BrandStoryTray({
     return (
       launches.some(
         (l) =>
-          (l.brand_hint?.toLowerCase().includes(bn) || l.title?.toLowerCase().includes(bn)) &&
-          (l.status === 'New' || (l.festive_tag && l.festive_tag !== 'None')),
+          l.brand_name?.toLowerCase().includes(bn) && l.pitch_status !== 'Converted',
       ) ||
-      kolData.some((k) => k.brand_hint.toLowerCase().includes(bn) && k.status === 'New')
+      kolData.some((k) => k.detected_keywords?.toLowerCase().includes(bn))
     );
   }
 
@@ -309,7 +344,6 @@ function BrandStoryTray({
               onClick={() => onSelect(selected ? null : brand.name)}
               className="flex flex-col items-center gap-1.5 shrink-0"
             >
-              {/* Gradient ring wrapper */}
               <div
                 className="w-14 h-14 rounded-full"
                 style={
@@ -324,9 +358,7 @@ function BrandStoryTray({
                   className="w-full h-full rounded-full flex items-center justify-center"
                   style={{ backgroundColor: brand.color }}
                 >
-                  <span className="text-white text-xs font-bold select-none">
-                    {brand.initial}
-                  </span>
+                  <span className="text-white text-xs font-bold select-none">{brand.initial}</span>
                 </div>
               </div>
               <span
@@ -352,9 +384,9 @@ type Accent = 'emerald' | 'amber' | 'violet' | 'blue';
 
 const ACCENT: Record<Accent, { text: string; bg: string; border: string }> = {
   emerald: { text: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' },
-  amber: { text: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20' },
-  violet: { text: 'text-violet-400', bg: 'bg-violet-400/10', border: 'border-violet-400/20' },
-  blue: { text: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' },
+  amber:   { text: 'text-amber-400',   bg: 'bg-amber-400/10',   border: 'border-amber-400/20'   },
+  violet:  { text: 'text-violet-400',  bg: 'bg-violet-400/10',  border: 'border-violet-400/20'  },
+  blue:    { text: 'text-blue-400',    bg: 'bg-blue-400/10',    border: 'border-blue-400/20'    },
 };
 
 function MetricCard({
@@ -406,7 +438,7 @@ function LaunchRadar({
         <div>
           <h2 className="text-zinc-100 font-semibold text-sm tracking-wide">Launch Radar</h2>
           <p className="text-zinc-500 text-xs mt-0.5">
-            Singapore FMCG signals — trade publications · RSS feeds
+            FMCG signals — trade publications · RSS feeds · SG & MY
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -416,7 +448,7 @@ function LaunchRadar({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/25 hover:border-emerald-500/50 rounded-md text-xs text-emerald-300 transition-all"
           >
             <Download className="w-3 h-3" />
-            📥 Export Regional Market Intel Report
+            Export Report
           </a>
           <button
             onClick={onRunScraper}
@@ -440,80 +472,77 @@ function LaunchRadar({
       ) : launches.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-zinc-600 gap-2">
           <Database className="w-7 h-7" />
-          <p className="text-sm">No leads yet — run the scraper to populate.</p>
+          <p className="text-sm">No launches yet — run the scraper or add rows in Supabase.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {launches.map((row, i) => {
-            const initials = (row.source ?? 'U')
-              .split(/[\s/·]+/)
-              .filter(Boolean)
-              .map((w: string) => w[0])
-              .slice(0, 2)
-              .join('')
-              .toUpperCase();
-            return (
-              <div
-                key={row.url_hash ?? i}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden flex flex-col hover:border-zinc-700 transition-colors"
-              >
-                {/* Header */}
-                <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
-                  <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-300 shrink-0">
-                    {initials}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-zinc-300 text-xs font-medium truncate">{row.source ?? '—'}</p>
-                    <p className="text-zinc-600 text-[10px]">{row.market ?? 'SG'} · {row.timestamp?.slice(0, 10)}</p>
-                  </div>
-                  <span className={`shrink-0 inline-block px-2 py-0.5 rounded text-[10px] ${STATUS_PILL[row.status ?? ''] ?? 'bg-zinc-800 text-zinc-400'}`}>
-                    {row.status ?? '—'}
-                  </span>
+          {launches.map((row) => (
+            <div
+              key={row.id}
+              className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden flex flex-col hover:border-zinc-700 transition-colors"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
+                  style={{ background: brandGradient(row.brand_name) }}
+                >
+                  {(row.brand_name ?? '?')[0].toUpperCase()}
                 </div>
-                {/* Media frame */}
-                <div className="w-full aspect-square relative overflow-hidden bg-zinc-950 border-y border-white/[0.05] flex items-center justify-center px-5">
-                  <p className="text-zinc-200 text-sm leading-snug text-center line-clamp-5 font-medium">
-                    {row.title}
+                <div className="min-w-0 flex-1">
+                  <p className="text-zinc-200 text-xs font-semibold truncate">{row.brand_name}</p>
+                  <p className="text-zinc-600 text-[10px] flex items-center gap-1">
+                    <MapPin className="w-2.5 h-2.5 inline shrink-0" />
+                    {row.market}{row.retail_channel ? ` · ${row.retail_channel}` : ''}
                   </p>
                 </div>
-                {/* Caption metadata */}
-                <div className="px-3 py-2.5 flex-1 flex flex-col gap-1.5">
-                  {row.brand_hint && (
-                    <p className="text-zinc-400 text-xs leading-snug">{row.brand_hint}</p>
+                <span
+                  className={`shrink-0 inline-block px-2 py-0.5 rounded text-[10px] ${
+                    STATUS_PILL[row.pitch_status ?? ''] ?? 'bg-zinc-800 text-zinc-400'
+                  }`}
+                >
+                  {row.pitch_status ?? '—'}
+                </span>
+              </div>
+
+              {/* Product photo / gradient frame */}
+              <ProductFrame
+                photoUrl={row.product_photo_url}
+                brandName={row.brand_name}
+                altText={row.product_name}
+              />
+
+              {/* Caption metadata */}
+              <div className="px-3 py-2.5 flex-1 flex flex-col gap-1.5">
+                <p className="text-zinc-200 text-xs font-medium leading-snug line-clamp-2">
+                  {row.product_name}
+                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {row.distributor_point && row.distributor_point !== 'Unknown' && (
+                    <span className="text-[10px] text-sky-400/70 bg-sky-400/5 border border-sky-400/10 rounded px-1.5 py-0.5">
+                      {row.distributor_point}
+                    </span>
                   )}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {row.distributor_point && row.distributor_point !== 'Unknown' && (
-                      <span className="text-[10px] text-sky-400/70 bg-sky-400/5 border border-sky-400/10 rounded px-1.5 py-0.5">
-                        {row.distributor_point}
-                      </span>
-                    )}
-                    {row.festive_tag && row.festive_tag !== 'None' && (
-                      <span className="text-[10px] text-amber-400/70 bg-amber-400/5 border border-amber-400/10 rounded px-1.5 py-0.5">
-                        🎊 {row.festive_tag}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {/* Action baseline */}
-                <div className="flex items-center justify-between px-3 pb-3 pt-1 border-t border-zinc-800/60">
-                  <p className="text-zinc-700 text-[10px]">{row.timestamp?.slice(0, 10)}</p>
-                  {row.url && row.url !== '#' ? (
-                    <a
-                      href={row.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300 text-xs transition-colors"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      Source
-                    </a>
-                  ) : (
-                    <span className="text-zinc-800 text-xs">—</span>
+                  {row.festive_tag && row.festive_tag !== 'None' && (
+                    <span className="text-[10px] text-amber-400/70 bg-amber-400/5 border border-amber-400/10 rounded px-1.5 py-0.5">
+                      🎊 {row.festive_tag}
+                    </span>
+                  )}
+                  {row.creator_display_name && (
+                    <span className="text-[10px] text-violet-400/60 bg-violet-400/5 border border-violet-400/10 rounded px-1.5 py-0.5">
+                      {row.creator_display_name}
+                    </span>
                   )}
                 </div>
               </div>
-            );
-          })}
+
+              {/* Action baseline */}
+              <div className="flex items-center justify-between px-3 pb-3 pt-1 border-t border-zinc-800/60">
+                <p className="text-zinc-700 text-[10px]">{fmtDate(row.last_action_date)}</p>
+                <span className="text-zinc-800 text-[10px]">supabase ↗</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -546,12 +575,11 @@ function KolRadar({
   return (
     <div className="flex flex-col h-full">
       <div className="mb-5 shrink-0">
-        <h2 className="text-zinc-100 font-semibold text-sm tracking-wide">KOL Unboxing Radar</h2>
+        <h2 className="text-zinc-100 font-semibold text-sm tracking-wide">KOL Intelligence Radar</h2>
         <p className="text-zinc-500 text-xs mt-0.5">
-          High-signal creator activity ·{' '}
+          Creator signals — SG & MY ·{' '}
           <span className="text-violet-400/70">#prhaulsg</span> ·{' '}
-          <span className="text-violet-400/70">#mediakitsg</span> ·{' '}
-          <span className="text-violet-400/70">#sgfoodie</span>
+          <span className="text-violet-400/70">#mediakitsg</span>
         </p>
       </div>
 
@@ -562,14 +590,17 @@ function KolRadar({
       ) : visible.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-zinc-600 gap-2">
           <Users className="w-7 h-7" />
-          <p className="text-sm">No KOL signals to display.</p>
+          <p className="text-sm">No KOL signals — add rows to kol_intel in Supabase.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {visible.map((kol) => {
             const converted = convertedIds.has(kol.id);
             const converting = convertingId === kol.id;
-            const tier = signalTier(kol.signal_score);
+            const keywords = kol.detected_keywords
+              ?.split(',')
+              .map((k) => k.trim())
+              .filter(Boolean) ?? [];
 
             return (
               <div
@@ -586,57 +617,60 @@ function KolRadar({
                     {PLATFORM_EMOJI[kol.platform] ?? '🔗'}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-zinc-300 text-xs font-medium truncate">{kol.handle}</p>
+                    <p className="text-zinc-200 text-xs font-medium truncate">
+                      {kol.creator_display_name ?? 'Unknown Creator'}
+                    </p>
                     <p className="text-zinc-600 text-[10px]">
-                      {kol.platform} · {fmtFollowers(kol.follower_count)} followers
+                      {kol.platform} · {kol.market}
                     </p>
                   </div>
-                  <div className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold ${SIGNAL_RING[tier]}`}>
-                    <Signal className={`w-2.5 h-2.5 ${SIGNAL_TEXT[tier]}`} />
-                    <span className={SIGNAL_TEXT[tier]}>{kol.signal_score}</span>
-                  </div>
+                  <span className="shrink-0 text-zinc-600 text-[10px]">
+                    {kol.captured_date
+                      ? new Date(kol.captured_date).toLocaleDateString('en-SG', {
+                          day: 'numeric',
+                          month: 'short',
+                        })
+                      : '—'}
+                  </span>
                 </div>
 
-                {/* Media frame */}
-                <div className="w-full aspect-square relative overflow-hidden bg-zinc-950 border-y border-white/[0.05] flex items-center justify-center px-5">
-                  <p className="text-zinc-300 text-sm leading-relaxed text-center italic line-clamp-6">
-                    &ldquo;{kol.recent_post}&rdquo;
-                  </p>
-                </div>
+                {/* Product photo / gradient frame */}
+                <ProductFrame
+                  photoUrl={kol.product_photo_url}
+                  brandName={kol.detected_keywords ?? kol.platform}
+                  altText={kol.creator_display_name ?? 'KOL post'}
+                />
 
                 {/* Caption metadata */}
                 <div className="px-3 py-2.5 flex-1 flex flex-col gap-1.5">
-                  <div className="flex items-start gap-1.5">
-                    <Zap className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
-                    <p className="text-amber-300/75 text-xs leading-snug">{kol.brand_hint}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {kol.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="text-[10px] text-violet-400/60 bg-violet-400/5 border border-violet-400/10 rounded px-1 py-0.5"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  {kol.distributor_point && kol.distributor_point !== 'Unknown' && (
-                    <span className="self-start text-[10px] text-sky-400/70 bg-sky-400/5 border border-sky-400/10 rounded px-1.5 py-0.5">
-                      {kol.distributor_point}
-                    </span>
+                  {keywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {keywords.slice(0, 5).map((kw) => (
+                        <span
+                          key={kw}
+                          className="text-[10px] text-violet-400/60 bg-violet-400/5 border border-violet-400/10 rounded px-1 py-0.5"
+                        >
+                          {kw.startsWith('#') ? kw : `#${kw}`}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {kol.source_url && kol.source_url !== '#' && (
+                    <a
+                      href={kol.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300 text-[10px] transition-colors w-fit"
+                    >
+                      <ExternalLink className="w-2.5 h-2.5" />
+                      View post
+                    </a>
                   )}
                 </div>
 
                 {/* Action baseline */}
                 <div className="flex items-center justify-between px-3 pb-3 pt-1 border-t border-zinc-800/60">
-                  <p className="text-zinc-700 text-[10px]">
-                    {new Date(kol.detected_at).toLocaleString('en-SG', {
-                      day: 'numeric',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
+                  <p className="text-zinc-700 text-[10px]">{kol.market}</p>
                   {converted ? (
                     <div className="flex items-center gap-1 text-emerald-400 text-xs">
                       <CheckCircle2 className="w-3 h-3" />
@@ -655,11 +689,7 @@ function KolRadar({
                         disabled={!!convertingId}
                         className="flex items-center gap-1.5 px-2 py-1 bg-violet-600/15 hover:bg-violet-600/25 border border-violet-500/25 hover:border-violet-500/50 rounded text-violet-300 text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                       >
-                        {converting ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          '🚀'
-                        )} Convert
+                        {converting ? <Loader2 className="w-3 h-3 animate-spin" /> : '🚀'} Convert
                       </button>
                     </div>
                   )}
@@ -679,22 +709,22 @@ function KolRadar({
 
 const TABS: { id: TabId; label: string; emoji: string }[] = [
   { id: 'launch-radar', label: 'Launch Radar', emoji: '🚀' },
-  { id: 'kol-radar', label: 'KOL Radar', emoji: '📱' },
+  { id: 'kol-radar',    label: 'KOL Radar',    emoji: '📱' },
 ];
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<TabId>('launch-radar');
-  const [launches, setLaunches] = useState<LaunchRecord[]>([]);
-  const [kolData, setKolData] = useState<KolRecord[]>([]);
+  const [activeTab,     setActiveTab]     = useState<TabId>('launch-radar');
+  const [launches,      setLaunches]      = useState<LaunchRecord[]>([]);
+  const [kolData,       setKolData]       = useState<KolRecord[]>([]);
   const [loadingLaunches, setLoadingLaunches] = useState(true);
-  const [loadingKol, setLoadingKol] = useState(true);
-  const [scraping, setScraping] = useState(false);
-  const [convertingId, setConvertingId] = useState<string | null>(null);
-  const [convertedIds, setConvertedIds] = useState<Set<string>>(new Set());
-  const [usingDemo, setUsingDemo] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [marketFilter, setMarketFilter] = useState<'ALL' | 'SG' | 'MY'>('ALL');
-  const [brandFilter, setBrandFilter] = useState<string | null>(null);
+  const [loadingKol,    setLoadingKol]    = useState(true);
+  const [scraping,      setScraping]      = useState(false);
+  const [convertingId,  setConvertingId]  = useState<string | null>(null);
+  const [convertedIds,  setConvertedIds]  = useState<Set<string>>(new Set());
+  const [usingDemo,     setUsingDemo]     = useState(false);
+  const [lastUpdated,   setLastUpdated]   = useState(new Date());
+  const [marketFilter,  setMarketFilter]  = useState<'ALL' | 'SG' | 'MY'>('ALL');
+  const [brandFilter,   setBrandFilter]   = useState<string | null>(null);
   const [ignoredKolIds, setIgnoredKolIds] = useState<Set<string>>(new Set());
 
   const fetchLaunches = useCallback(async () => {
@@ -763,6 +793,10 @@ export default function Dashboard() {
     }
   };
 
+  const handleIgnoreKol = (kolId: string) => {
+    setIgnoredKolIds((prev) => new Set([...prev, kolId]));
+  };
+
   // Market filter
   const filteredLaunches = launches.filter((l) => {
     if (marketFilter === 'ALL') return true;
@@ -773,33 +807,27 @@ export default function Dashboard() {
     return marketFilter === 'MY' ? k.market === 'Malaysia' : k.market !== 'Malaysia';
   });
 
-  const handleIgnoreKol = (kolId: string) => {
-    setIgnoredKolIds((prev) => new Set([...prev, kolId]));
-  };
-
-  // Brand filter applied on top of market filter
+  // Brand filter (applied on top of market filter)
   const brandFilteredLaunches = brandFilter
-    ? filteredLaunches.filter((l) => {
-        const bn = brandFilter.toLowerCase();
-        return l.brand_hint?.toLowerCase().includes(bn) || l.title?.toLowerCase().includes(bn);
-      })
+    ? filteredLaunches.filter((l) =>
+        l.brand_name?.toLowerCase().includes(brandFilter.toLowerCase()),
+      )
     : filteredLaunches;
-
   const brandFilteredKolData = brandFilter
-    ? filteredKolData.filter((k) => k.brand_hint.toLowerCase().includes(brandFilter.toLowerCase()))
+    ? filteredKolData.filter(
+        (k) =>
+          k.detected_keywords?.toLowerCase().includes(brandFilter.toLowerCase()) ||
+          k.creator_display_name?.toLowerCase().includes(brandFilter.toLowerCase()),
+      )
     : filteredKolData;
 
   // Derived metrics
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const totalActiveLeads = brandFilteredLaunches.filter((l) => l.status !== 'Converted').length;
-  const conversionsThisWeek = brandFilteredLaunches.filter((l) => {
-    if (!l.timestamp) return false;
-    return new Date(l.timestamp) >= weekAgo && l.status === 'KOL Lead';
-  }).length;
-  const avgSignalScore =
-    brandFilteredKolData.length > 0
-      ? Math.round(brandFilteredKolData.reduce((s, k) => s + k.signal_score, 0) / brandFilteredKolData.length)
-      : 0;
+  const totalActiveLeads    = brandFilteredLaunches.filter((l) => l.pitch_status !== 'Converted').length;
+  const kolLeadsThisWeek    = brandFilteredLaunches.filter(
+    (l) => l.pitch_status === 'KOL Lead' && !!l.last_action_date && new Date(l.last_action_date) >= weekAgo,
+  ).length;
+  const myLeadsCount        = brandFilteredLaunches.filter((l) => l.market === 'Malaysia').length;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
@@ -835,7 +863,7 @@ export default function Dashboard() {
           {usingDemo && (
             <div className="flex items-center gap-1.5 text-amber-400/80 text-xs">
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Demo data — connect Google Sheets to go live</span>
+              <span>Demo data — set SUPABASE_URL + SUPABASE_ANON_KEY in Vercel</span>
             </div>
           )}
           <div className="flex items-center gap-1.5">
@@ -850,32 +878,32 @@ export default function Dashboard() {
       {/* ── Metrics banner ── */}
       <div className="shrink-0 border-b border-zinc-800/60 px-5 py-3 grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard
-          label="Total Active Leads"
+          label="Active Leads"
           value={totalActiveLeads}
           icon={TrendingUp}
           accent="emerald"
-          sub="across all sources"
+          sub="pitch_status ≠ Converted"
         />
         <MetricCard
-          label="Conversions This Week"
-          value={conversionsThisWeek}
-          icon={CheckCircle2}
+          label="KOL Leads (7d)"
+          value={kolLeadsThisWeek}
+          icon={Zap}
           accent="amber"
-          sub="KOL → Launches sheet"
+          sub="KOL → Launches"
         />
         <MetricCard
           label="KOL Signals"
-          value={filteredKolData.length}
+          value={brandFilteredKolData.length}
           icon={Users}
           accent="violet"
           sub="#prhaulsg · #mediakitsg"
         />
         <MetricCard
-          label="Avg Signal Score"
-          value={avgSignalScore || '—'}
+          label="MY Market"
+          value={myLeadsCount}
           icon={Activity}
           accent="blue"
-          sub="creator confidence / 100"
+          sub="Malaysia launches"
         />
       </div>
 
@@ -922,11 +950,7 @@ export default function Dashboard() {
           {/* RSS source list */}
           <div className="mt-auto pt-4 border-t border-zinc-800/60 px-2 space-y-2">
             <p className="text-zinc-700 text-xs tracking-widest uppercase">RSS Sources</p>
-            {[
-              'Campaign Brief Asia',
-              'Marketing Interactive',
-              'Retail News Asia',
-            ].map((src) => (
+            {['Campaign Brief Asia', 'Marketing Interactive', 'Retail News Asia'].map((src) => (
               <div key={src} className="flex items-center gap-1.5">
                 <span className="w-1 h-1 rounded-full bg-emerald-500 shrink-0" />
                 <span className="text-zinc-600 text-xs">{src}</span>
