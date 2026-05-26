@@ -238,6 +238,113 @@ const PLATFORM_EMOJI: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Brand Story Tray — horizontal scrollable brand avatars with IG story rings
+// ---------------------------------------------------------------------------
+
+const FEATURED_BRANDS = [
+  { name: 'Nestlé',     initial: 'N',  color: '#a16207' },
+  { name: 'Unilever',   initial: 'U',  color: '#1d4ed8' },
+  { name: 'F&N',        initial: 'F',  color: '#c2410c' },
+  { name: 'Oatbedient', initial: 'Oa', color: '#92400e' },
+  { name: 'Meiji',      initial: 'M',  color: '#9d174d' },
+  { name: 'Mondelez',   initial: 'Mz', color: '#6b21a8' },
+  { name: 'P&G',        initial: 'P',  color: '#0369a1' },
+  { name: 'Danone',     initial: 'D',  color: '#3730a3' },
+];
+
+const STORY_GRADIENT = 'linear-gradient(135deg, #FF007A, #FF6B00, #FFC800)';
+
+function BrandStoryTray({
+  launches,
+  kolData,
+  activeBrand,
+  onSelect,
+}: {
+  launches: LaunchRecord[];
+  kolData: KolRecord[];
+  activeBrand: string | null;
+  onSelect: (brand: string | null) => void;
+}) {
+  function hasActiveSignal(brandName: string): boolean {
+    const bn = brandName.toLowerCase();
+    return (
+      launches.some(
+        (l) =>
+          (l.brand_hint?.toLowerCase().includes(bn) || l.title?.toLowerCase().includes(bn)) &&
+          (l.status === 'New' || (l.festive_tag && l.festive_tag !== 'None')),
+      ) ||
+      kolData.some((k) => k.brand_hint.toLowerCase().includes(bn) && k.status === 'New')
+    );
+  }
+
+  return (
+    <div className="shrink-0 border-b border-zinc-800/60 px-5">
+      <div className="flex overflow-x-auto gap-5 py-4 scrollbar-none">
+        {/* "All" node */}
+        <button
+          onClick={() => onSelect(null)}
+          className="flex flex-col items-center gap-1.5 shrink-0"
+        >
+          <div
+            className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center text-lg"
+            style={
+              activeBrand === null
+                ? { boxShadow: '0 0 0 2px #e4e4e7' }
+                : { boxShadow: '0 0 0 1.5px #3f3f46' }
+            }
+          >
+            🌐
+          </div>
+          <span className={`text-[10px] ${activeBrand === null ? 'text-zinc-200' : 'text-zinc-600'}`}>
+            All
+          </span>
+        </button>
+
+        {FEATURED_BRANDS.map((brand) => {
+          const active = hasActiveSignal(brand.name);
+          const selected = activeBrand === brand.name;
+          return (
+            <button
+              key={brand.name}
+              onClick={() => onSelect(selected ? null : brand.name)}
+              className="flex flex-col items-center gap-1.5 shrink-0"
+            >
+              {/* Gradient ring wrapper */}
+              <div
+                className="w-14 h-14 rounded-full"
+                style={
+                  active && !selected
+                    ? { background: STORY_GRADIENT, padding: '2.5px' }
+                    : selected
+                    ? { border: '2px solid #e4e4e7', padding: '2px' }
+                    : { border: '1.5px solid #3f3f46', padding: '2.5px' }
+                }
+              >
+                <div
+                  className="w-full h-full rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: brand.color }}
+                >
+                  <span className="text-white text-xs font-bold select-none">
+                    {brand.initial}
+                  </span>
+                </div>
+              </div>
+              <span
+                className={`text-[10px] max-w-[3.5rem] truncate ${
+                  selected ? 'text-zinc-200' : 'text-zinc-600'
+                }`}
+              >
+                {brand.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MetricCard
 // ---------------------------------------------------------------------------
 
@@ -336,60 +443,77 @@ function LaunchRadar({
           <p className="text-sm">No leads yet — run the scraper to populate.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-zinc-950">
-              <tr className="border-b border-zinc-800">
-                <th className="text-left py-2 px-3 text-zinc-600 text-xs font-medium tracking-wider uppercase w-7">#</th>
-                <th className="text-left py-2 px-3 text-zinc-600 text-xs font-medium tracking-wider uppercase">Signal</th>
-                <th className="text-left py-2 px-3 text-zinc-600 text-xs font-medium tracking-wider uppercase w-36">Source</th>
-                <th className="text-left py-2 px-3 text-zinc-600 text-xs font-medium tracking-wider uppercase w-24">Date</th>
-                <th className="text-left py-2 px-3 text-zinc-600 text-xs font-medium tracking-wider uppercase w-24">Status</th>
-                <th className="py-2 px-3 w-7" />
-              </tr>
-            </thead>
-            <tbody>
-              {launches.map((row, i) => (
-                <tr
-                  key={row.url_hash ?? i}
-                  className="border-b border-zinc-900 hover:bg-zinc-900/40 transition-colors"
-                >
-                  <td className="py-3 px-3 text-zinc-700 text-xs">{i + 1}</td>
-                  <td className="py-3 px-3">
-                    <p className="text-zinc-200 text-xs leading-snug line-clamp-2">{row.title}</p>
-                    {row.brand_hint && (
-                      <p className="text-zinc-600 text-xs mt-0.5">{row.brand_hint}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {launches.map((row, i) => {
+            const initials = (row.source ?? 'U')
+              .split(/[\s/·]+/)
+              .filter(Boolean)
+              .map((w: string) => w[0])
+              .slice(0, 2)
+              .join('')
+              .toUpperCase();
+            return (
+              <div
+                key={row.url_hash ?? i}
+                className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden flex flex-col hover:border-zinc-700 transition-colors"
+              >
+                {/* Header */}
+                <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
+                  <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-300 shrink-0">
+                    {initials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-zinc-300 text-xs font-medium truncate">{row.source ?? '—'}</p>
+                    <p className="text-zinc-600 text-[10px]">{row.market ?? 'SG'} · {row.timestamp?.slice(0, 10)}</p>
+                  </div>
+                  <span className={`shrink-0 inline-block px-2 py-0.5 rounded text-[10px] ${STATUS_PILL[row.status ?? ''] ?? 'bg-zinc-800 text-zinc-400'}`}>
+                    {row.status ?? '—'}
+                  </span>
+                </div>
+                {/* Media frame */}
+                <div className="w-full aspect-square relative overflow-hidden bg-zinc-950 border-y border-white/[0.05] flex items-center justify-center px-5">
+                  <p className="text-zinc-200 text-sm leading-snug text-center line-clamp-5 font-medium">
+                    {row.title}
+                  </p>
+                </div>
+                {/* Caption metadata */}
+                <div className="px-3 py-2.5 flex-1 flex flex-col gap-1.5">
+                  {row.brand_hint && (
+                    <p className="text-zinc-400 text-xs leading-snug">{row.brand_hint}</p>
+                  )}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {row.distributor_point && row.distributor_point !== 'Unknown' && (
+                      <span className="text-[10px] text-sky-400/70 bg-sky-400/5 border border-sky-400/10 rounded px-1.5 py-0.5">
+                        {row.distributor_point}
+                      </span>
                     )}
-                  </td>
-                  <td className="py-3 px-3 text-zinc-500 text-xs">{row.source}</td>
-                  <td className="py-3 px-3 text-zinc-600 text-xs whitespace-nowrap">
-                    {row.timestamp?.slice(0, 10)}
-                  </td>
-                  <td className="py-3 px-3">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded text-xs ${
-                        STATUS_PILL[row.status ?? ''] ?? 'bg-zinc-800 text-zinc-400'
-                      }`}
+                    {row.festive_tag && row.festive_tag !== 'None' && (
+                      <span className="text-[10px] text-amber-400/70 bg-amber-400/5 border border-amber-400/10 rounded px-1.5 py-0.5">
+                        🎊 {row.festive_tag}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {/* Action baseline */}
+                <div className="flex items-center justify-between px-3 pb-3 pt-1 border-t border-zinc-800/60">
+                  <p className="text-zinc-700 text-[10px]">{row.timestamp?.slice(0, 10)}</p>
+                  {row.url && row.url !== '#' ? (
+                    <a
+                      href={row.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300 text-xs transition-colors"
                     >
-                      {row.status ?? '—'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3">
-                    {row.url && row.url !== '#' && (
-                      <a
-                        href={row.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-zinc-700 hover:text-zinc-300 transition-colors"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      <ExternalLink className="w-3 h-3" />
+                      Source
+                    </a>
+                  ) : (
+                    <span className="text-zinc-800 text-xs">—</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -406,19 +530,25 @@ function KolRadar({
   onConvert,
   convertingId,
   convertedIds,
+  onIgnore,
+  ignoredKolIds,
 }: {
   kolData: KolRecord[];
   loading: boolean;
   onConvert: (id: string) => void;
   convertingId: string | null;
   convertedIds: Set<string>;
+  onIgnore: (id: string) => void;
+  ignoredKolIds: Set<string>;
 }) {
+  const visible = kolData.filter((k) => !ignoredKolIds.has(k.id));
+
   return (
     <div className="flex flex-col h-full">
       <div className="mb-5 shrink-0">
         <h2 className="text-zinc-100 font-semibold text-sm tracking-wide">KOL Unboxing Radar</h2>
         <p className="text-zinc-500 text-xs mt-0.5">
-          High-signal Singapore creator activity ·{' '}
+          High-signal creator activity ·{' '}
           <span className="text-violet-400/70">#prhaulsg</span> ·{' '}
           <span className="text-violet-400/70">#mediakitsg</span> ·{' '}
           <span className="text-violet-400/70">#sgfoodie</span>
@@ -429,9 +559,14 @@ function KolRadar({
         <div className="flex items-center justify-center h-48">
           <Loader2 className="w-5 h-5 text-zinc-700 animate-spin" />
         </div>
+      ) : visible.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-48 text-zinc-600 gap-2">
+          <Users className="w-7 h-7" />
+          <p className="text-sm">No KOL signals to display.</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 overflow-y-auto">
-          {kolData.map((kol) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {visible.map((kol) => {
             const converted = convertedIds.has(kol.id);
             const converting = convertingId === kol.id;
             const tier = signalTier(kol.signal_score);
@@ -439,59 +574,62 @@ function KolRadar({
             return (
               <div
                 key={kol.id}
-                className={`rounded-lg border p-4 transition-all ${
+                className={`rounded-xl border overflow-hidden flex flex-col transition-colors ${
                   converted
                     ? 'border-emerald-500/25 bg-emerald-500/5'
-                    : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-700'
+                    : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700'
                 }`}
               >
-                {/* Header row */}
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-base leading-none">
-                      {PLATFORM_EMOJI[kol.platform] ?? '🔗'}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-zinc-100 font-medium text-sm truncate">{kol.handle}</p>
-                      <p className="text-zinc-500 text-xs">
-                        {kol.platform} · {fmtFollowers(kol.follower_count)} followers
-                      </p>
-                    </div>
+                {/* Header */}
+                <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
+                  <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-sm shrink-0 leading-none">
+                    {PLATFORM_EMOJI[kol.platform] ?? '🔗'}
                   </div>
-                  <div
-                    className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded border text-xs font-bold ${SIGNAL_RING[tier]}`}
-                  >
-                    <Signal className={`w-3 h-3 ${SIGNAL_TEXT[tier]}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-zinc-300 text-xs font-medium truncate">{kol.handle}</p>
+                    <p className="text-zinc-600 text-[10px]">
+                      {kol.platform} · {fmtFollowers(kol.follower_count)} followers
+                    </p>
+                  </div>
+                  <div className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold ${SIGNAL_RING[tier]}`}>
+                    <Signal className={`w-2.5 h-2.5 ${SIGNAL_TEXT[tier]}`} />
                     <span className={SIGNAL_TEXT[tier]}>{kol.signal_score}</span>
                   </div>
                 </div>
 
-                {/* Post excerpt */}
-                <p className="text-zinc-300 text-xs leading-relaxed mb-3 border-l-2 border-zinc-700 pl-2 italic">
-                  &ldquo;{kol.recent_post}&rdquo;
-                </p>
+                {/* Media frame */}
+                <div className="w-full aspect-square relative overflow-hidden bg-zinc-950 border-y border-white/[0.05] flex items-center justify-center px-5">
+                  <p className="text-zinc-300 text-sm leading-relaxed text-center italic line-clamp-6">
+                    &ldquo;{kol.recent_post}&rdquo;
+                  </p>
+                </div>
 
-                {/* Tags */}
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {kol.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="text-xs text-violet-400/60 bg-violet-400/5 border border-violet-400/10 rounded px-1.5 py-0.5"
-                    >
-                      {tag}
+                {/* Caption metadata */}
+                <div className="px-3 py-2.5 flex-1 flex flex-col gap-1.5">
+                  <div className="flex items-start gap-1.5">
+                    <Zap className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-amber-300/75 text-xs leading-snug">{kol.brand_hint}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {kol.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-[10px] text-violet-400/60 bg-violet-400/5 border border-violet-400/10 rounded px-1 py-0.5"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  {kol.distributor_point && kol.distributor_point !== 'Unknown' && (
+                    <span className="self-start text-[10px] text-sky-400/70 bg-sky-400/5 border border-sky-400/10 rounded px-1.5 py-0.5">
+                      {kol.distributor_point}
                     </span>
-                  ))}
+                  )}
                 </div>
 
-                {/* Brand hint */}
-                <div className="flex items-center gap-1.5 mb-3">
-                  <Zap className="w-3 h-3 text-amber-400 shrink-0" />
-                  <p className="text-amber-300/75 text-xs">{kol.brand_hint}</p>
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
-                  <p className="text-zinc-700 text-xs">
+                {/* Action baseline */}
+                <div className="flex items-center justify-between px-3 pb-3 pt-1 border-t border-zinc-800/60">
+                  <p className="text-zinc-700 text-[10px]">
                     {new Date(kol.detected_at).toLocaleString('en-SG', {
                       day: 'numeric',
                       month: 'short',
@@ -499,25 +637,31 @@ function KolRadar({
                       minute: '2-digit',
                     })}
                   </p>
-
                   {converted ? (
-                    <div className="flex items-center gap-1.5 text-emerald-400 text-xs">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Converted to Lead</span>
+                    <div className="flex items-center gap-1 text-emerald-400 text-xs">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Converted</span>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => onConvert(kol.id)}
-                      disabled={!!convertingId}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600/15 hover:bg-violet-600/25 border border-violet-500/25 hover:border-violet-500/50 rounded text-violet-300 text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-all group"
-                    >
-                      {converting ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <ArrowUpRight className="w-3 h-3 group-hover:translate-x-px group-hover:-translate-y-px transition-transform" />
-                      )}
-                      Convert to Lead
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => onIgnore(kol.id)}
+                        className="flex items-center gap-1 px-2 py-1 rounded border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 text-xs transition-all"
+                      >
+                        ❌ Ignore
+                      </button>
+                      <button
+                        onClick={() => onConvert(kol.id)}
+                        disabled={!!convertingId}
+                        className="flex items-center gap-1.5 px-2 py-1 bg-violet-600/15 hover:bg-violet-600/25 border border-violet-500/25 hover:border-violet-500/50 rounded text-violet-300 text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      >
+                        {converting ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          '🚀'
+                        )} Convert
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -550,6 +694,8 @@ export default function Dashboard() {
   const [usingDemo, setUsingDemo] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [marketFilter, setMarketFilter] = useState<'ALL' | 'SG' | 'MY'>('ALL');
+  const [brandFilter, setBrandFilter] = useState<string | null>(null);
+  const [ignoredKolIds, setIgnoredKolIds] = useState<Set<string>>(new Set());
 
   const fetchLaunches = useCallback(async () => {
     setLoadingLaunches(true);
@@ -627,16 +773,32 @@ export default function Dashboard() {
     return marketFilter === 'MY' ? k.market === 'Malaysia' : k.market !== 'Malaysia';
   });
 
+  const handleIgnoreKol = (kolId: string) => {
+    setIgnoredKolIds((prev) => new Set([...prev, kolId]));
+  };
+
+  // Brand filter applied on top of market filter
+  const brandFilteredLaunches = brandFilter
+    ? filteredLaunches.filter((l) => {
+        const bn = brandFilter.toLowerCase();
+        return l.brand_hint?.toLowerCase().includes(bn) || l.title?.toLowerCase().includes(bn);
+      })
+    : filteredLaunches;
+
+  const brandFilteredKolData = brandFilter
+    ? filteredKolData.filter((k) => k.brand_hint.toLowerCase().includes(brandFilter.toLowerCase()))
+    : filteredKolData;
+
   // Derived metrics
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const totalActiveLeads = filteredLaunches.filter((l) => l.status !== 'Converted').length;
-  const conversionsThisWeek = filteredLaunches.filter((l) => {
+  const totalActiveLeads = brandFilteredLaunches.filter((l) => l.status !== 'Converted').length;
+  const conversionsThisWeek = brandFilteredLaunches.filter((l) => {
     if (!l.timestamp) return false;
     return new Date(l.timestamp) >= weekAgo && l.status === 'KOL Lead';
   }).length;
   const avgSignalScore =
-    filteredKolData.length > 0
-      ? Math.round(filteredKolData.reduce((s, k) => s + k.signal_score, 0) / filteredKolData.length)
+    brandFilteredKolData.length > 0
+      ? Math.round(brandFilteredKolData.reduce((s, k) => s + k.signal_score, 0) / brandFilteredKolData.length)
       : 0;
 
   return (
@@ -717,6 +879,14 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* ── Brand Story Tray ── */}
+      <BrandStoryTray
+        launches={filteredLaunches}
+        kolData={filteredKolData}
+        activeBrand={brandFilter}
+        onSelect={setBrandFilter}
+      />
+
       {/* ── Main layout ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
@@ -735,14 +905,14 @@ export default function Dashboard() {
               >
                 <span className="text-base leading-none">{tab.emoji}</span>
                 <span>{tab.label}</span>
-                {tab.id === 'launch-radar' && filteredLaunches.length > 0 && (
+                {tab.id === 'launch-radar' && brandFilteredLaunches.length > 0 && (
                   <span className="ml-auto text-[10px] bg-zinc-700 text-zinc-400 rounded-full px-1.5 min-w-[18px] text-center">
-                    {filteredLaunches.length}
+                    {brandFilteredLaunches.length}
                   </span>
                 )}
-                {tab.id === 'kol-radar' && filteredKolData.length > 0 && (
+                {tab.id === 'kol-radar' && brandFilteredKolData.length > 0 && (
                   <span className="ml-auto text-[10px] bg-violet-500/20 text-violet-400 rounded-full px-1.5 min-w-[18px] text-center">
-                    {filteredKolData.length}
+                    {brandFilteredKolData.length}
                   </span>
                 )}
               </button>
@@ -769,7 +939,7 @@ export default function Dashboard() {
         <main className="flex-1 overflow-auto p-6">
           {activeTab === 'launch-radar' && (
             <LaunchRadar
-              launches={filteredLaunches}
+              launches={brandFilteredLaunches}
               loading={loadingLaunches}
               onRunScraper={handleRunScraper}
               scraping={scraping}
@@ -777,11 +947,13 @@ export default function Dashboard() {
           )}
           {activeTab === 'kol-radar' && (
             <KolRadar
-              kolData={filteredKolData}
+              kolData={brandFilteredKolData}
               loading={loadingKol}
               onConvert={handleConvertToLead}
               convertingId={convertingId}
               convertedIds={convertedIds}
+              onIgnore={handleIgnoreKol}
+              ignoredKolIds={ignoredKolIds}
             />
           )}
         </main>
